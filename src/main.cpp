@@ -1,7 +1,6 @@
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 #ifdef ESP32
-#include <FS.h>
-#include <SPIFFS.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -40,8 +39,7 @@ struct Config {
 
 Config  config;
 bool    vm_init = false;
-String  spiffs_pwd  = "";
-bool    spiffs_init = false;
+bool    fs_init = false;
 
 IM3Environment	m3_env;
 IM3Runtime		m3_runtime;
@@ -243,12 +241,12 @@ M3Result m3_LinkArduino(IM3Runtime runtime) {
 size_t readWasmSize(const char *path) {
 	if(DEBUG) { Serial.print(F("Reading file: ")); Serial.println(path); }
 
-	if(!SPIFFS.exists(path)) {
+	if(!LittleFS.exists(path)) {
 		if(DEBUG) { Serial.println(F("File not found")); }
 		return 0;
 	}
 
-	File file = SPIFFS.open(path, "rb");
+	File file = LittleFS.open(path, "rb");
 	if(!file) {
 		if(DEBUG) { Serial.println(F("Failed to open file for reading")); }
 		return 0;
@@ -261,12 +259,12 @@ size_t readWasmSize(const char *path) {
 size_t readWasm(const char *path, uint8_t *buf) {
 	if(DEBUG) { Serial.print(F("Reading file: ")); Serial.println(path); }
 
-	if(!SPIFFS.exists(path)) {
+	if(!LittleFS.exists(path)) {
 		if(DEBUG) { Serial.println(F("File not found")); }
 		return 0;
 	}
 
-	File file = SPIFFS.open(path, "rb");
+	File file = LittleFS.open(path, "rb");
 	if(!file) {
 		if(DEBUG) { Serial.println(F("Failed to open file for reading")); }
 		return 0;
@@ -285,7 +283,7 @@ size_t readWasm(const char *path, uint8_t *buf) {
 
 void wasmInit() {
 
-	if(!spiffs_init) { // Don't try to load the file if the filestsrem isn't mounted
+	if(!fs_init) { // Don't try to load the file if the filestsrem isn't mounted
 		if(DEBUG) { Serial.println(F("/init.wasm failed")); }
 		vm_init = false;
 		return;
@@ -312,7 +310,7 @@ void wasmInit() {
 	  
 	size_t wasm_size = readWasmSize("/init.wasm");
 	if(wasm_size == 0) {
-		if(DEBUG) { Serial.println(F("ReadWasm: File not found")); }
+		if(DEBUG) { Serial.println(F("ReadWasmSize: File not found")); }
 		return;
 	}
 	
@@ -392,7 +390,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	}
 	if(!index) {
 		if(DEBUG) { Serial.print(F("UploadStart: ")); Serial.println(filename.c_str()); }
-		request->_tempFile = SPIFFS.open("/init.wasm", "w");
+		request->_tempFile = LittleFS.open("/init.wasm", "w");
 	}
 	if(len) {
 		request->_tempFile.write(data, len);
@@ -407,8 +405,8 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 }
 
 bool loadConfig(Config &config) {
-	if(spiffs_init) {
-		File configFile = SPIFFS.open("/config.json", "r");
+	if(fs_init) {
+		File configFile = LittleFS.open("/config.json", "r");
 		if(!configFile) {
 			if(DEBUG) { Serial.println(F("Failed to open config file")); }
 		}
@@ -452,9 +450,9 @@ bool loadConfig(Config &config) {
 }
 
 bool saveConfiguration(Config &config) {
-	if(spiffs_init) {
-		SPIFFS.remove("/config.json");
-		File configFile = SPIFFS.open("/config.json", "w");
+	if(fs_init) {
+		LittleFS.remove("/config.json");
+		File configFile = LittleFS.open("/config.json", "w");
 		if(!configFile) {
 			if(DEBUG) { Serial.println(F("Failed to create Config file")); }
 			return false;
@@ -489,11 +487,11 @@ void setup() {
 	Serial.setDebugOutput(false); // do not use wifi debug to console
 	Serial.println("");
 
-	if(!SPIFFS.begin()) {
-		if(DEBUG) { Serial.println(F("SPIFFS Initialization ... failed")); }
+	if(!LittleFS.begin()) {
+		if(DEBUG) { Serial.println(F("LittleFS Initialization ... failed")); }
 	} else { 
-		Serial.println(F("\nSPIFFS Initialize..."));
-		spiffs_init = true;
+		Serial.println(F("\nLittleFS Initialize..."));
+		fs_init = true;
 	}
   
 	if(!loadConfig(config)) {
@@ -526,7 +524,7 @@ void setup() {
 	}
 
 	MDNS.begin(config.hostName);
-	server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+	server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 	server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request){request->send(200, "text/plain", String(ESP.getFreeHeap()));});
 	server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {}, handleUpload);
 	server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request) {

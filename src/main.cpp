@@ -416,23 +416,23 @@ bool loadConfig(Config &config) {
 		if(size > 1024) {
 			if(DEBUG) { Serial.println(F("Config file size is too large")); }
 		}
-		StaticJsonBuffer<512> jsonBuffer;
-		JsonObject &root = jsonBuffer.parseObject(configFile);
-		configFile.close();
-		config.led_pin = root["led_pin"] | 4;
-		config.led_count = root["led_count"] | 8;
-		config.vm_alloc = root["vm_alloc"] | 4096;
-		strlcpy(config.wifi_sta_ssid, root["wifi_sta_ssid"] | "", sizeof(config.wifi_sta_ssid));
-		strlcpy(config.wifi_sta_pass, root["wifi_sta_pass"] | "", sizeof(config.wifi_sta_pass));
-		strlcpy(config.wifi_ap_ssid, root["wifi_ap_ssid"] | "", sizeof(config.wifi_ap_ssid));
-		strlcpy(config.wifi_ap_pass, root["wifi_ap_pass"] | "", sizeof(config.wifi_ap_pass));
-		strlcpy(config.hostName, root["hostName"] | "NeoWasm", sizeof(config.hostName));
-		strlcpy(config.http_username, root["http_username"] | "", sizeof(config.http_username));
-		strlcpy(config.http_password, root["http_password"] | "", sizeof(config.http_password));
-		if(!root.success()) {
+		StaticJsonDocument<512> jsonDoc;
+		DeserializationError error = deserializeJson(jsonDoc, configFile);
+		if(error) {
 			if(DEBUG) { Serial.println(F("Failed to read file, using default configuration")); }
 			return false;
 		}
+		configFile.close();
+		config.led_pin = jsonDoc["led_pin"] | 4;
+		config.led_count = jsonDoc["led_count"] | 8;
+		config.vm_alloc = jsonDoc["vm_alloc"] | 4096;
+		strlcpy(config.wifi_sta_ssid, jsonDoc["wifi_sta_ssid"] | "", sizeof(config.wifi_sta_ssid));
+		strlcpy(config.wifi_sta_pass, jsonDoc["wifi_sta_pass"] | "", sizeof(config.wifi_sta_pass));
+		strlcpy(config.wifi_ap_ssid, jsonDoc["wifi_ap_ssid"] | "", sizeof(config.wifi_ap_ssid));
+		strlcpy(config.wifi_ap_pass, jsonDoc["wifi_ap_pass"] | "", sizeof(config.wifi_ap_pass));
+		strlcpy(config.hostName, jsonDoc["hostName"] | "NeoWasm", sizeof(config.hostName));
+		strlcpy(config.http_username, jsonDoc["http_username"] | "", sizeof(config.http_username));
+		strlcpy(config.http_password, jsonDoc["http_password"] | "", sizeof(config.http_password));
 	} else {
 		if(DEBUG) { Serial.println(F("Failed to read file, using default configuration")); }
 		config.led_pin = 4;
@@ -459,26 +459,27 @@ bool saveConfiguration(Config &config) {
 			if(DEBUG) { Serial.println(F("Failed to create Config file")); }
 			return false;
 		}
-		StaticJsonBuffer<256> jsonBuffer;
-		JsonObject &root = jsonBuffer.createObject();
-		root["led_pin"] = config.led_pin;
-		root["led_count"] = config.led_count;
-		root["vm_alloc"] = config.vm_alloc;
-		root["wifi_sta_ssid"] = config.wifi_sta_ssid;
-		root["wifi_sta_pass"] = config.wifi_sta_pass;
-		root["wifi_ap_ssid"] = config.wifi_ap_ssid; 
-		root["wifi_ap_pass"] = config.wifi_ap_pass;
-		root["hostname"] = config.hostName;
-		root["http_username"] = config.http_username;
-		root["http_password"] = config.http_password;
-		if(root.printTo(configFile) == 0) {
+		StaticJsonDocument<256> jsonDoc;
+		DeserializationError error = deserializeJson(jsonDoc, configFile);
+		if(error) {
 			if(DEBUG) { Serial.println(F("Failed to write to Config file")); }
 			return false;
 		}
+		jsonDoc["led_pin"] = config.led_pin;
+		jsonDoc["led_count"] = config.led_count;
+		jsonDoc["vm_alloc"] = config.vm_alloc;
+		jsonDoc["wifi_sta_ssid"] = config.wifi_sta_ssid;
+		jsonDoc["wifi_sta_pass"] = config.wifi_sta_pass;
+		jsonDoc["wifi_ap_ssid"] = config.wifi_ap_ssid;
+		jsonDoc["wifi_ap_pass"] = config.wifi_ap_pass;
+		jsonDoc["hostname"] = config.hostName;
+		jsonDoc["http_username"] = config.http_username;
+		jsonDoc["http_password"] = config.http_password;
 		configFile.close();
 		Serial.println(F("Config File write complete"));
 		return true;
 	}
+	return false;
 }
 
 void setup() {
